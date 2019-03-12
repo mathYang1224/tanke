@@ -1,0 +1,9 @@
+{
+	"images" : [
+		{"name" : "block" , "url" : "R/images/block.bmp"},
+		{"name" : "enemy" , "url" : "R/images/enemy.bmp"},
+		{"name" : "player1" , "url" : "R/images/player1.bmp"},
+		{"name" : "bullet" , "url" : "R/images/bullet.png"}
+
+	]
+}

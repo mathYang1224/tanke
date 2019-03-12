@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>地图编辑器</title>
+	<style type="text/css">
+		*{
+			margin:0;
+			padding:0;
+		}
+		body,html{
+			height:100%;
+		}
+		.canvasbox{
+			width:416px;
+			height:416px;
+			position: relative;
+			margin:10px;
+		}
+		canvas{
+			border:1px solid #333;
+			background-color: black;
+		}
+		.cursor{
+			position: absolute;
+			width:32px;
+			height:32px;
+			border:1px solid red;
+			box-sizing:border-box;
+			top:64px;
+			left:64px;
+		}
+		.landtype li{
+			float: left;
+			width:32px;
+			height:32px;
+			margin-right: 10px;
+			background:url(R/images/block.bmp);
+			box-sizing:border-box;
+		}
+		.landtype{
+			list-style:none;
+			margin:10px;
+			overflow: hidden;
+		}
+		.landtype li.no1{
+			background-position: 0 0;
+		}
+		.landtype li.no2{
+			background-position: -32px 0;
+		}
+		.landtype li.no3{
+			background-position: -64px 0;
+		}
+		.landtype li.no4{
+			background-position: -96px 0;
+		}
+		.landtype li.no5{
+			background:black;
+		}
+		.landtype li.cur{
+
+			border:3px solid red;
+		}
+		.landtype li.small{
+			width:16px;
+			height:16px;
+		}
+		.btn{
+			width:100px;
+			height:60px;
+			background-color:skyblue;
+		}
+		.list{
+			float: left;
+			width:260px;
+			height:100%;
+			border-right:1px solid #333;
+		}
+		.list li{
+			font-size:30px;
+			line-height:30px;
+			padding-left:20px;
+		}
+	 
+		.list li.cur{
+			color:red;
+		}
+		.main{
+			float: left;
+			width:460px;
+			padding-left: 100px;
+		}
+	</style>
+</head>
+<body>
+
+	<div class="list">
+		当前本地maps文件夹中地图：
+		<ul>
+						 
+		</ul>
+	 	<input type="button" value="创建一个新地图" id="chuangjianbtn"/>
+	</div>
+
+	<div class="main">
+		<h1></h1>
+		<div class="tip">
+			<p>
+				信号量landtype值，1-砖头 2-钢块 3-草地 4-水面 0-无
+			</p>
+		</div>
+		<div class="tools">
+			<ul class="landtype">
+				<li class="no1 cur" data-landtype="1" data-base="32"></li>
+				<li class="no1 small" data-landtype="1" data-base="16"></li>
+				<li class="no2" data-landtype="2" data-base="32"></li>
+				<li class="no2 small" data-landtype="2" data-base="16"></li>
+				<li class="no3" data-landtype="3" data-base="32"></li>
+				<li class="no4" data-landtype="4" data-base="32"></li>
+				<li class="no5" data-landtype="0" data-base="32"></li>
+			</ul>
+
+		</div>
+		<div class="canvasbox">
+			<span class="cursor"></span>
+			<canvas width="416" height="416"></canvas>
+		</div>
+		<input type="button" value="保存" class="btn" id="save"/>
+	</div>
+
+
+	<script src="js/jquery-2.1.4.min.js"></script>
+	<script type="text/javascript">
+		var canvas = $("canvas").get(0);//转为原生对象
+		var ctx = canvas.getContext("2d");
+
+		var image = new Image();
+		image.src = "R/images/block.bmp";
+
+		//绘制的类型编号
+		var landtype = 1;
+		//绘制的大小
+		var base = 32;
+		//现在编辑的文件名
+		var noweditfile = "";
+
+		//矩阵
+		var code = (function(){
+			var code = [];
+			for (var i = 0; i < 26; i++) {
+				code.push("00000000000000000000000000");
+			}
+			return code;
+		})();
+ 
+		//改变矩阵的函数
+		function changecode(row,col,landtype){
+			code[row] = code[row].substr(0,col) + landtype + code[row].substr(col + 1);
+		}
+
+		//页面开始的时候，发出Ajax请求，请求maps文件夹中的所有文件
+		readlist();
+		function readlist(){
+			$(".list ul").empty();
+			$.get("php/list.php",function(data){
+				var listArr = JSON.parse(data);
+				for(var i = 0 ; i < listArr.length ; i++){
+					$("<li>" + listArr[i] + "<input type='button' value='编辑' data-file='" + listArr[i] + "' class='editbtn'/></li>").appendTo(".list ul");
+				}
+			});
+		}
+
+		//事件委托，“编辑”按钮的事件
+		$(".list ul").delegate(".editbtn","click",function(){
+			//清空
+			ctx.clearRect(0,0,416,416);
+			//清空code值
+			code = (function(){
+				var code = [];
+				for (var i = 0; i < 26; i++) {
+					code.push("00000000000000000000000000");
+				}
+				return code;
+			})();
+
+			// alert($(this).attr("data-file"));
+			$.get("maps/" + $(this).attr("data-file"),function(data){
+				//如果tkm文件是一个空文件，此时不需要渲染，等待保存就行了
+				if(data === ""){
+					ctx.clearRect(0,0,416,416);
+					//让code复原
+					return;
+				}
+				var arr = JSON.parse(data);
+				code = arr;
+
+				for(var i = 0 ; i < 26 ; i++){
+					for(var j = 0 ; j < 26 ; j++){
+						if(arr[i][j] != 0){
+							ctx.drawImage(image,(arr[i][j] - 1) * 32,0,16,16,j * 16,i * 16,16,16);
+						}else{
+							ctx.clearRect(j * 16,i * 16,16,16);
+						}
+							
+					}
+				}
+			});
+
+			//改变现在编辑
+			noweditfile = $(this).attr("data-file");
+			//显示在视图上
+			$("h1").html(noweditfile + "[编辑]")
+		});
+		
+
+		//当图片加载完毕之后
+		image.onload = function(){
+			//画老家
+			ctx.drawImage(image,5 * 32,0,32,32,6 * 32,12 * 32,32,32)
+			//添加监听鼠标移动的时候让cursor span同时移动，模拟成鼠标的样子
+			//这里我们没有给canvasbox添加监听，而是给canvas添加了监听，理由有二：
+			//① 因为canvas和span是兄弟节点，所以我们监听mousex和mousey的时候，兄弟节点之间是不会互相影响的，所以可以不用曲线救国；
+			//② 因为一会儿“拖拽模型”要移除canvasbox上的mousemove事件，所以如果这个监听也监听canvasbox，它就会躺枪。这个事件监听也会被清除。
+			$("canvas").mousemove(function(event){
+				var mousex = event.offsetX;
+				var mousey = event.offsetY;
+
+				var row = parseInt(mousey/base);
+				var col = parseInt(mousex/base);
+				//移动红框光标
+				$(".cursor").css({"left" : col * base , "top" : row * base});
+			});
+
+			//添加监听，鼠标指针按下的时候绘制一个图片
+			$(".canvasbox").mousedown(function(event){
+				var mousex = event.clientX - $(".canvasbox").offset().left;
+				var mousey = event.clientY - $(".canvasbox").offset().top;
+
+				var row = parseInt(mousey/base);
+				var col = parseInt(mousex/base);
+				 
+				//画一张
+				if(landtype != 0){
+					
+					ctx.drawImage(image,(landtype - 1) * 32,0,base,base,col * base,row * base,base,base);
+					//改变数组，row和col有一个倍数。
+					//比如现在是画大格，base是32，此时要改变4个矩阵。
+					//此时的3行8列，表示左侧是16小列，上方有6个小行。
+					changecode(row * base / 16 , col * base / 16 , landtype);
+					if(base == 32){
+						changecode(row * 2 + 1 ,col * 2 , landtype);
+						changecode(row * 2 , col * 2 + 1, landtype);
+						changecode(row * 2 + 1,col * 2 + 1, landtype);
+					}
+				}else{
+
+					ctx.clearRect(col * base,row * base,base,base);
+
+					//改变数组，这一项恢复为0
+					changecode(row * base / 16 , col * base / 16 , "0");
+					if(base == 32){
+						changecode(row * 2 + 1 , col * 2 , "0");
+						changecode(row * 2 , col * 2 + 1 , "0");
+						changecode(row * 2 + 1 , col * 2 + 1 , "0");
+					}
+				}
+
+				$(".canvasbox").mousemove(function(event){
+					var mousex = event.clientX - $(".canvasbox").offset().left;
+					var mousey = event.clientY - $(".canvasbox").offset().top;
+ 
+
+					var row = parseInt(mousey/base);
+					var col = parseInt(mousex/base);
+ 
+					//测试画一张
+					if(landtype != 0){
+						ctx.drawImage(image,(landtype - 1) * 32,0,base,base,col * base,row * base,base,base);
+						//改变数组
+						changecode(row * base / 16 , col * base / 16 , landtype);
+						if(base == 32){
+							changecode(row * 2 + 1 ,col * 2 , landtype);
+							changecode(row * 2 , col * 2 + 1, landtype);
+							changecode(row * 2 + 1,col * 2 + 1, landtype);
+						}
+					}else{
+						ctx.clearRect(col * base,row * base,base,base);
+						//改变数组
+						 changecode(row * base / 16 , col * base / 16 , "0");
+						if(base == 32){
+							changecode(row * 2 + 1 , col * 2 , "0");
+							changecode(row * 2 , col * 2 + 1 , "0");
+							changecode(row * 2 + 1 , col * 2 + 1 , "0");
+						}
+					}
+				});
+			});
+			//鼠标按下松开，移除监听。
+			$(".canvasbox").mouseup(function(event){
+				$(".canvasbox").off("mousemove");
+			});
+
+
+			//给landtype四个li添加监听，点到谁，信号量就变为几。
+			$(".landtype li").click(function(){
+				//从身上取值
+				landtype = parseInt($(this).attr("data-landtype"));
+				base = parseInt($(this).attr("data-base"));
+				$(this).addClass("cur").siblings().removeClass("cur");
+
+				//改变光标大小
+				$(".cursor").css({"width":base , "height" : base});
+				 
+			});
+		}
+
+
+		//保存按钮，
+		$("#save").click(function(){
+			$.post("php/write.php",{
+				"dijiguan" : noweditfile,
+				"ditushuzu" : JSON.stringify(code)
+			});
+		});
+
+		$("#chuangjianbtn").click(function(){
+			$.get("php/create.php",function(){
+				readlist();
+			});
+		});
+	</script>
+</body>
+</html>
